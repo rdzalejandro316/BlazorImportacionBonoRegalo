@@ -1,0 +1,450 @@
+@page "/"
+@using System.Dynamic
+@using Microsoft.Data.SqlClient
+@using Syncfusion.XlsIO
+@using System.Data
+@using importacionBono.Components.Model
+@inject Microsoft.JSInterop.IJSRuntime JS
+@inject importacionBono.Components.Services.ExcelService excelService
+@inject importacionBono.Components.Services.DataService dataService
+
+@rendermode InteractiveServer
+
+<PageTitle>Bono regalo</PageTitle>
+
+<div class="container">
+    <div class="row">
+        <div class="col-6 p-2">
+            <div class="h-100">
+                <div class="h-100 shadow-sm rounded card panel-importacion">
+                    <div class="panel-controles d-flex justify-content-end align-items-center me-2">
+                        <SfUploader AutoUpload="true">
+                            <UploaderEvents ValueChange="@OnChange"></UploaderEvents>
+                        </SfUploader>
+                        @* <InputFile class="custom-file-input ms-2" OnChange="OnInputFileChanged" accept=".xlsx" /> *@
+                        <SfButton CssClass="e-primary btn-style" @onclick="AbrirModal">Individual</SfButton>
+                        <SfButton CssClass="e-primary btn-style" @onclick="GenerarPlantilla">Plantilla</SfButton>
+                        <SfButton CssClass="e-primary btn-style" @onclick="GenerarDocumento">Generar</SfButton>
+                    </div>
+                    <div class="panel-grilla">
+                        <SfGrid DataSource="@ImportacionBonos" AllowSorting="true" AllowFiltering="true"
+                            AllowResizing="true">
+                            <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.Menu"></GridFilterSettings>
+                            <GridColumns>
+                                <GridColumn HeaderText="Bono regalo" TextAlign="TextAlign.Center" Width="100%" />
+                                <GridColumn HeaderText="Valor" TextAlign="TextAlign.Center" Width="150" />
+                                <GridColumn HeaderText="Porcentaje" TextAlign="TextAlign.Center" Width="150" />
+                            </GridColumns>
+                        </SfGrid>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 p-2 vh-100">
+            <div class="h-100 shadow-sm rounded card panel-consulta">
+                <div class="panel-opciones-consulta">
+                    <label class="fw-bold">Bono regalo:</label>
+                    <SfTextBox Placeholder='numero bono regalo' @bind-Value="@bonoRegalo"></SfTextBox>
+                    <SfButton CssClass="e-primary btn-style" @onclick="LoadConsulta">Consulta</SfButton>
+                    <SfButton CssClass="e-primary btn-style" @onclick="ExportarConsulta">Exportar</SfButton>
+                </div>
+                <div>
+                    <SfGrid @ref="DataGridConsulta" AllowExcelExport="true" DataSource="@ConsultaBonos" AllowSorting="true" AllowFiltering="true" AllowResizing="true">
+                        <GridFilterSettings Type="Syncfusion.Blazor.Grids.FilterType.Menu"></GridFilterSettings>
+                        <GridColumns>
+                            <GridColumn HeaderText="Bono regalo" Field="bono_regalo" TextAlign="TextAlign.Center"
+                                Width="100" />
+                            <GridColumn HeaderText="Valor" Field="valor" TextAlign="TextAlign.Center" Width="80"
+                                Format="C0" Type="Syncfusion.Blazor.Grids.ColumnType.Double" />
+                            <GridColumn HeaderText="Porcentaje" Field="porcentaje" TextAlign="TextAlign.Center"
+                                Width="80" Format="N" Type="Syncfusion.Blazor.Grids.ColumnType.Double" />
+                            <GridColumn HeaderText="Facturado" Field="facturado" TextAlign="TextAlign.Center" Width="80"
+                                DisplayAsCheckBox="true" Type="Syncfusion.Blazor.Grids.ColumnType.Boolean" />
+                            <GridColumn HeaderText="Factura" Field="num_trn" TextAlign="TextAlign.Center" Width="80" />
+                        </GridColumns>
+                    </SfGrid>
+                </div>
+                <div class="d-flex align-items-center panel-total-registros">
+                    <label class="ms-2 fw-bold">Total registros: @totalRegistros</label>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<SfDialog Target="#target" Width="500px" ShowCloseIcon="true" @bind-Visible="VisibilityModal" AllowPrerender="true"
+    IsModal="true">
+    <DialogTemplates>
+        <Header> Creacion de bono regalo </Header>
+        <Content>            
+            <EditForm class="container" Model="@formBonoRegalo">
+                <div class="row align-items-center mt-2">
+                    <label class="col-3 text-end fw-bold">Bono regalo:</label>
+                    <div class="col-9">
+                        <SfTextBox Placeholder='numero bono regalo' @bind-Value="@formBonoRegalo.BonoRegalo"></SfTextBox>
+                    </div>
+                </div>
+                <div class="row align-items-center mt-2">
+                    <label class="col-3 text-end fw-bold">Valor:</label>
+                    <div class="col-9">
+                        <InputNumber Placeholder='numero bono regalo' @bind-Value="@formBonoRegalo.Valor"></InputNumber>
+                    </div>
+                </div>
+                <div class="row align-items-center mt-2">
+                    <label class="col-3 text-end fw-bold">Porcentaje:</label>
+                    <div class="col-9">
+                        <InputNumber Placeholder='numero bono regalo' @bind-Value="@formBonoRegalo.Porcentaje"></InputNumber>
+                    </div>
+                </div>
+                <div class="row align-items-center justify-content-center mt-3">
+                    <SfButton CssClass="e-primary btn-style" @onclick="GuardarBono">Guardar</SfButton>
+                    <SfButton CssClass="e-primary btn-style" @onclick="CancelarBono">Cancelar</SfButton>
+                </div>
+            </EditForm>
+        </Content>
+    </DialogTemplates>
+    using Microsoft.VisualBasic;
+</SfDialog>
+
+<SfToast ID="toast_default" @ref="ToastObj" Title="Alerta" Timeout="5000" CssClass="e-toast-success">
+        <ToastPosition X="right" Y="top"></ToastPosition>
+</SfToast>
+
+<style>
+    using System.Runtime.CompilerServices;
+    using System.Xml.Schema;
+    using System.Runtime.CompilerServices;
+    .card {
+        background-color: white;
+    }
+
+    .panel-importacion {
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-rows: 100px 1fr;
+        grid-column-gap: 0px;
+        grid-row-gap: 0px;
+    }
+
+    .panel-consulta {
+        display: grid;
+        grid-template-columns: 1fr;
+        grid-template-rows: 100px 1fr 40px;
+        grid-column-gap: 0px;
+        grid-row-gap: 0px;
+    }
+
+    .panel-opciones-consulta {
+        display: grid;
+        grid-template-columns: 120px 150px 100px 100px;
+        grid-template-rows: 1fr;
+        align-items: center;
+        gap: 5px;
+        text-align: right;
+    }
+
+    .panel-controles {
+        grid-area: 1 / 1 / 2 / 2;
+    }
+
+    .panel-grilla {
+        grid-area: 2 / 1 / 3 / 2;
+    }
+
+    .btn-style {
+        height: 35px;
+        width: 100px;
+        margin: 5px;
+    }
+
+    .e-grid .e-headercell {
+        background: whitesmoke;
+    }
+
+    .custom-file-input {
+        left: 0;
+        position: absolute;
+    }
+
+    .panel-total-registros {
+        background: whitesmoke;
+    }
+</style>
+
+@code {
+    private SfGrid<ExpandoObject> DataGridConsulta;
+
+    public List<ExpandoObject> ImportacionBonos { get; set; } = default!;
+    public List<ExpandoObject> ConsultaBonos { get; set; } = default!;
+    public string bonoRegalo { get; set; } = default!;
+    public int totalRegistros { get; set; } = default!;
+    private bool VisibilityModal { get; set; } = false;
+    private BonoReaglo formBonoRegalo { get; set; } = new BonoReaglo();
+    SfToast ToastObj;
+
+    public async void GenerarPlantilla()
+    {
+        await JS.InvokeVoidAsync("console.log", $"AAAAAAAAAAa");
+        MemoryStream excelStream = excelService.CreateExcel();
+        await JS.SaveAs("milanelo.xlsx", excelStream.ToArray());
+    }
+
+
+    private async Task OnChange(UploadChangeEventArgs args) {
+
+        try
+        {  
+            IWorksheet worksheet;
+            
+            foreach (var file in args.Files)
+            {
+
+                await JS.InvokeVoidAsync("console.log", $"file:", file);
+
+                var tempFilePath = Path.GetTempPath() + "\\" + Guid.NewGuid().ToString();
+                Stream Stream = new FileStream(tempFilePath, FileMode.Create);
+                await file.File.OpenReadStream(long.MaxValue).CopyToAsync(Stream);
+
+                Stream.Close();
+
+                using (Stream fileStream = new FileStream(tempFilePath, FileMode.Open))
+                {
+
+                    using (ExcelEngine excelEngine = new ExcelEngine())
+                    {
+            
+                        IApplication application = excelEngine.Excel;                 
+                        application.DefaultVersion = ExcelVersion.Xlsx;     
+                        IWorkbook workbook = application.Workbooks.Open(fileStream);
+                        worksheet = workbook.Worksheets[0];
+                        var value = worksheet.Range["A1"].Value;
+                        await JS.InvokeVoidAsync("console.log", $"value:", value);
+                        
+                    }
+                }
+            }
+
+            @* if(worksheet)
+            {
+                DataTable customersTable = worksheet.ExportDataTable(worksheet.UsedRange, ExcelExportDataTableOptions.ColumnNames);
+                await JS.InvokeVoidAsync("console.log", $"filas:", customersTable.Rows.Count);
+            } *@
+
+        }
+        catch (Exception w)
+        {
+            await JS.InvokeVoidAsync("console.error", $"errrrrr:", w);
+        }
+    }
+
+    private async Task OnInputFileChanged(InputFileChangeEventArgs e)
+    {
+        try
+        {
+
+
+            var file = e.File;
+
+            await JS.InvokeVoidAsync("console.log", $"A0:", e);
+
+            // Create a temporary stream to hold the file content (security-conscious approach)
+            using (var memoryStream = new MemoryStream())
+            {
+                await file.OpenReadStream().CopyToAsync(memoryStream);
+                memoryStream.Position = 0; // Reset stream position for reading
+
+                // Process the Excel file using the memory stream
+                using (ExcelEngine excelEngine = new ExcelEngine())
+                {
+                    IApplication application = excelEngine.Excel;
+                    application.DefaultVersion = ExcelVersion.Xlsx;
+
+                    IWorkbook workbook = application.Workbooks.Open(memoryStream);
+
+                    IWorksheet worksheet = workbook.Worksheets[0];
+                    await JS.InvokeVoidAsync("console.log", $"A1:", worksheet.Range["A2"].Text);
+                    await JS.InvokeVoidAsync("console.log", $"A2:", worksheet.Cells.Count());
+                    await JS.InvokeVoidAsync("console.log", $"A3:", worksheet.Columns.Count());
+                    await JS.InvokeVoidAsync("console.log", $"A4:", worksheet.Rows.Count());
+
+                    DataTable customersTable = worksheet.ExportDataTable(worksheet.UsedRange, ExcelExportDataTableOptions.ColumnNames);
+
+                    await JS.InvokeVoidAsync("console.log", $"filas:", customersTable.Rows.Count);
+
+                    foreach (DataRow row in customersTable.Rows)
+                    {
+                        await JS.InvokeVoidAsync("console.log", $"valor:", row[0]);
+                    }
+
+                    //Saving the workbook as stream
+                    @* FileStream stream = new FileStream("ExportToDT.xlsx", FileMode.Create, FileAccess.ReadWrite);
+                    workbook.SaveAs(stream);
+                    stream.Dispose(); *@
+
+                    //await JS.InvokeVoidAsync("console.log", $"A2:", nestedClassObjects);
+                }
+
+                @* using (ExcelEngine excelEngine = new ExcelEngine())
+                {
+                    await JS.InvokeVoidAsync("console.log", $"F1");
+                    IApplication application = excelEngine.Excel;
+                    application.DefaultVersion = ExcelVersion.Xlsx;
+                    await JS.InvokeVoidAsync("console.log", $"F2");
+                    FileStream inputStream = new FileStream(Path.GetFullPath(@"C:\Users\aleja\OneDrive\Escritorio\milanelo.xlsx"), FileMode.Open, FileAccess.Read);
+                    await JS.InvokeVoidAsync("console.log", $"F3");
+                    IWorkbook workbook = application.Workbooks.Open(inputStream);
+                    await JS.InvokeVoidAsync("console.log", $"F4");
+                    IWorksheet worksheet = workbook.Worksheets[0];
+
+                    await JS.InvokeVoidAsync("console.log", $"F5");
+                    //Read data from the worksheet and Export to the DataTable
+                    await JS.InvokeVoidAsync("console.log", $"worksheet:", worksheet);
+                    //DataTable customersTable = worksheet.ExportDataTable(worksheet.UsedRange, ExcelExportDataTableOptions.ColumnNames |
+                    //ExcelExportDataTableOptions.ComputedFormulaValues);
+                    //await JS.InvokeVoidAsync("console.log", $"A2:", customersTable);
+
+                    //Dispose streams
+                    inputStream.Dispose();
+                } *@
+
+            }
+
+        }
+        catch (Exception w)
+        {
+            await JS.InvokeVoidAsync("console.error", $"errrrrr:", w);
+        }
+
+        // Aquí puedes acceder a las propiedades del archivo, como nombre, tamaño, tipo, etc.
+        // Puedes guardar el archivo en el servidor, subirlo a la nube o realizar cualquier otra operación
+    }
+
+
+    public void GenerarDocumento()
+    {
+
+    }
+
+    public void AbrirModal()
+    {
+        VisibilityModal = true;
+        formBonoRegalo.Clear();
+    }
+
+    public async Task GuardarBono()
+    {
+        if(formBonoRegalo.Valor > 0 && formBonoRegalo.Porcentaje > 0)
+        {
+            await Message($"Solo se puede regintrar un valor o porcentaje no los dos al tiempo",TipoMensaje.alerta);
+            return;
+        }
+
+        if(formBonoRegalo.Valor <= 0 && formBonoRegalo.Porcentaje <= 0)
+        {
+            await Message($"Debe de ingresar un valor positivo para el campo valor o porcentaje",TipoMensaje.alerta);
+            return;
+        }
+
+        if(string.IsNullOrEmpty(formBonoRegalo.BonoRegalo))
+        {
+            await Message($"El campo bono regalo debe de estar lleno",TipoMensaje.alerta);
+            return;
+        }
+        else
+        {
+            string query = $"select * from inmae_bonos_regalo_copia where bono_regalo='{formBonoRegalo.BonoRegalo}'";
+            var bonoRegistrado =  await dataService.GetDataAsync(query);
+            if(bonoRegistrado.Count > 0)
+            {
+                await Message($"El bono {formBonoRegalo.BonoRegalo} ya se encuentra registrado en el sistema",TipoMensaje.alerta);
+                return;   
+            }
+
+        }
+
+        bool succes = await Insert();
+        if(succes)
+        {
+            VisibilityModal = false;
+            await Message($"Se inserto el bono {formBonoRegalo.BonoRegalo} exitosamente",TipoMensaje.exito);
+        }
+
+    }
+
+
+    public async Task<bool> Insert()
+    {
+        await JS.InvokeVoidAsync("console.log", $"formBonoRegalo:", formBonoRegalo);
+
+        string query = "INSERT INTO inmae_bonos_regalo_copia (bono_regalo,valor,porcentaje) values (@bono_regalo,@valor,@porcentaje);";
+        SqlParameter[] parameterCrud = {
+            dataService.ParameterSql("@bono_regalo", SqlDbType.VarChar,formBonoRegalo.BonoRegalo),
+            dataService.ParameterSql("@valor", SqlDbType.Decimal,formBonoRegalo.Valor),
+            dataService.ParameterSql("@porcentaje", SqlDbType.Decimal,formBonoRegalo.Porcentaje)
+        };
+
+        return await dataService.CrudAsync(query,parameterCrud);
+    }
+
+
+    public async Task Message(string mensaje,TipoMensaje tipoMensaje = TipoMensaje.informacion)
+    {
+        this.ToastObj.Content = mensaje;
+
+        switch(tipoMensaje)
+        {
+            case TipoMensaje.alerta:
+                this.ToastObj.CssClass = "e-toast-warning";
+            break;
+            case TipoMensaje.exito:
+                this.ToastObj.CssClass = "e-toast-success";
+            break;
+            case TipoMensaje.informacion:
+                this.ToastObj.CssClass = "e-toast-info";
+            break;
+            case TipoMensaje.error :
+                this.ToastObj.CssClass = "e-toast-danger";
+            break;
+        }
+        
+        await this.ToastObj.ShowAsync();
+    }
+
+    public void CancelarBono()
+    {
+        VisibilityModal = false;
+    }
+
+    public async Task LoadConsulta()
+    {
+        string query = $"select idrow,bono_regalo,valor,porcentaje,facturado,num_trn ";
+        query += $"from inmae_bonos_regalo_copia ";
+        if (!string.IsNullOrEmpty(bonoRegalo)) query += $"where bono_regalo='{bonoRegalo}'";
+
+        ConsultaBonos = await dataService.GetDataAsync(query);
+        totalRegistros = ConsultaBonos.Count();
+    }
+
+    public async Task ExportarConsulta()
+    {
+       await DataGridConsulta.ExportToExcelAsync();
+    }
+
+
+    public partial class BonoRegalo
+    {
+        public string NumeroBonoRegalo { get; set; }
+        public double Valor { get; set; }
+        public double Porcentaje { get; set; }
+
+    }
+
+    public enum TipoMensaje{
+        alerta,
+        exito,
+        informacion,
+        error
+    }
+}
